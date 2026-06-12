@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/whis-core",
     "crates/whis-cli",
+    "crates/whis-desktop",
 ]
 
 [workspace.package]
@@ -30,3 +31,13 @@ global-hotkey = "0.7"
 crossbeam-channel = "0.5"
 interprocess = "2"
 whis-core = { path = "crates/whis-core", version = "0.1.0", default-features = true }
+
+# Patch time >= 0.3.37 which added a blanket From<HourBase> impl that
+# conflicts with blanket impls in tauri-utils 2.9.2 and cookie 0.18.
+# Pin to the last pre-conflict release until upstream fixes ship.
+#
+# Also path-patch tauri-utils 2.9.2 with explicit From<i64>/From<f64>
+# instead of the blanket From<T: Into<Number>> for Value (which clashes
+# with time's blanket). vendored at vendor/tauri-utils.
+[patch.crates-io]
+time = { git = "https://github.com/time-rs/time", tag = "v0.3.36" }

@@ -1,0 +1,149 @@
+//! Whis Desktop - Tauri Application
+//!
+//! Desktop application for voice transcription with global keyboard shortcuts
+//! and system tray integration.
+//!
+//! ## Architecture
+//!
+//! ```text
+//! whis-desktop/
+//! ├── bubble/        - Floating bubble overlay (experimental)
+//! ├── commands/      - Tauri command handlers (30+ commands)
+//! ├── recording/     - Recording orchestration & pipeline
+//! ├── shortcuts/     - Global keyboard shortcuts (3 backends)
+//! ├── tray/          - System tray UI & interactions
+//! ├── state.rs       - Application state management
+//! ├── window.rs      - Window utilities
+//! ├── lib.rs         - Application entry point
+//! └── main.rs        - CLI argument parsing
+//! ```
+
+pub mod bubble;
+mod commands;
+pub mod recording;
+pub mod shortcuts;
+mod state;
+pub mod tray;
+mod window;
+
+use tauri::{Emitter, Manager};
+use tauri_plugin_store::StoreExt;
+use whis_core::{Settings, warn};
+
+/// Load settings from Tauri store, or return defaults if not present.
+fn load_settings_from_store(app: &tauri::AppHandle) -> Settings {
+    match app.store("settings.json") {
+        Ok(store) => match store.get("settings") {
+            Some(value) => serde_json::from_value(value.clone()).unwrap_or_else(|e| {
+                warn!("Failed to deserialize settings: {e}. Using defaults.");
+                Settings::default()
+            }),
+            None => Settings::default(),
+        },
+        Err(e) => {
+            warn!("Failed to load store: {e}. Using default settings.");
+            Settings::default()
+        }
+    }
+}
+
+pub fn run(start_in_tray: bool) {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if !args.contains(&"--start-in-tray".to_string()) {
+                match app.get_webview_window("main") {
+                    Some(window) => {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                    None => {
+                        let _ = window::show_main_window(app);
+                    }
+                }
+            }
+        }))
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .setup(move |app| {
+            // Load settings from Tauri store
+            let loaded_settings = load_settings_from_store(app.handle());
+
+            // Initialize state with tray availability
+            app.manage(state::AppState::new(loaded_settings, true));
+
+            // Initialize system tray (optional - may fail on tray-less environments)
+            if let Err(e) = tray::setup_tray(app) {
+                warn!("Tray unavailable: {e}. Running in window mode.");
+            }
+
+            // Initialize floating bubble window (hidden by default)
+            if let Err(e) = bubble::create_bubble_window(app.handle()) {
+                warn!("Bubble unavailable: {e}");
+            }
+
+            // Setup global shortcuts (hybrid: Tauri plugin / Portal / CLI fallback)
+            shortcuts::setup_shortcuts(app);
+
+            // Start IPC listener for --toggle CLI commands
+            shortcuts::start_ipc_listener(app.handle().clone());
+
+            // Only show main window if NOT starting in tray
+            if !start_in_tray {
+                window::show_main_window(app.handle())?;
+            }
+
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            use tauri::WindowEvent;
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                // Prevent immediate close - emit event to frontend for graceful shutdown
+                api.prevent_close();
+                let _ = window.emit("window-close-requested", ());
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            // System commands
+            commands::get_toggle_command,
+            commands::can_reopen_window,
+            commands::list_audio_devices,
+            commands::exit_app,
+            commands::get_autotype_tool_status_cmd,
+            // Recording commands
+            commands::get_status,
+            commands::is_api_configured,
+            commands::toggle_recording,
+            // Settings commands
+            commands::get_settings,
+            commands::save_settings,
+            commands::check_config_readiness,
+            commands::get_defaults,
+            // Shortcut commands
+            commands::shortcut_backend,
+            commands::configure_shortcut,
+            commands::configure_shortcut_with_trigger,
+            commands::portal_shortcut,
+            commands::reset_shortcut,
+            commands::portal_bind_error,
+            commands::rdev_grab_error,
+            commands::check_input_group_membership,
+            commands::open_keyboard_settings,
+            commands::get_shortcut_instructions,
+            commands::system_shortcut_from_dconf,
+            commands::check_shortcut_path_mismatch,
+            commands::update_shortcut_command,
+            // Model commands (parakeet only)
+            commands::get_parakeet_models,
+            commands::is_parakeet_model_valid,
+            commands::download_parakeet_model,
+            commands::get_active_download,
+            // Bubble commands
+            commands::bubble_toggle_recording,
+            commands::bubble_get_position,
+            commands::bubble_move_by,
+            commands::bubble_save_position,
+            commands::bubble_supports_drag,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
