@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/whis-core",
+    "crates/whis-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["steimbyte <steimbyte@users.noreply.github.com>"]
+license = "MIT"
+repository = "https://github.com/steimbyte/parakeet-cli"
+homepage = "https://github.com/steimbyte/parakeet-cli"
+
+[workspace.dependencies]
+anyhow = "1.0"
+thiserror = "2.0"
+dirs = "6"
+tokio = { version = "1.48", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "multipart", "rustls", "json"] }
+cpal = "0.17"
+hound = "3.5.1"
+arboard = { version = "3.6.1", features = ["wayland-data-control"] }
+clap = { version = "4.5", features = ["derive"] }
+rdev = { version = "0.5", features = ["unstable_grab"] }
+global-hotkey = "0.7"
+crossbeam-channel = "0.5"
+interprocess = "2"
+whis-core = { path = "crates/whis-core", version = "0.1.0", default-features = true }

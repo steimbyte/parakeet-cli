@@ -1,0 +1,41 @@
+[package]
+name = "whis-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Local Parakeet ASR CLI for terminal users"
+repository.workspace = true
+homepage.workspace = true
+keywords = ["voice", "transcription", "parakeet", "cli", "audio"]
+categories = ["command-line-utilities", "multimedia::audio"]
+
+[[bin]]
+name = "whis"
+path = "src/main.rs"
+
+[dependencies]
+whis-core.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+rdev.workspace = true
+global-hotkey.workspace = true
+crossbeam-channel.workspace = true
+interprocess.workspace = true
+reqwest.workspace = true
+dirs.workspace = true
+crossterm = "0.29"
+dialoguer = "0.12"
+hound.workspace = true
+
+[features]
+default = ["vad", "local-transcription", "hotkey"]
+# Voice Activity Detection to skip silence during recording
+vad = ["whis-core/vad"]
+# Local Parakeet transcription via transcribe-rs
+local-transcription = ["whis-core/local-transcription"]
+# Hotkey parsing
+hotkey = ["whis-core/hotkey"]

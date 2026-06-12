@@ -1,0 +1,64 @@
+# Rust build artifacts
+/target/
+
+# Environment variables (contains API keys)
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+dist/
+
+# Nuxt
+.nuxt/
+.output/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Legacy Vite build artifacts (project migrated to Nuxt)
+vite.config.js
+vite.config.d.ts
+
+# Tauri generated (only ignore desktop, mobile gen is tracked for Android customizations)
+crates/whis-desktop/gen/
+
+# Tauri auto-generated schemas (regenerated on build)
+crates/whis-mobile/gen/schemas/
+
+# Example app generated files (regenerate with cargo tauri android init)
+crates/tauri-plugin-floating-bubble/examples/*/src-tauri/gen/
+
+# Flatpak build artifacts
+.flatpak-builder/
+flatpak-build/
+build-dir/
+*.flatpak
+
+# Local release docs (contains machine-specific paths)
+RELEASING.md
+FUTURE.md
+TEST_TRANSCRIPTS.md
+
+# Draft documents not ready for commit
+rfcs/
+crates/whis-desktop/EXTENSIONS.md
+*.org
+
+full-cycle.sh
+
+# Agent instructions (local only)
+AGENTS.md

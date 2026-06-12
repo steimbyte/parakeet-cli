@@ -1,0 +1,89 @@
+use crate::{app, hotkey, ipc, service};
+use anyhow::Result;
+use whis_core::Settings;
+use whis_core::autotyping::OutputMethod;
+use whis_core::settings::CliShortcutMode;
+
+pub fn run(autotype: bool) -> Result<()> {
+    if ipc::is_service_running() {
+        eprintln!("Error: whis service is already running.");
+        eprintln!("Use 'whis stop' to stop the existing service first.");
+        std::process::exit(1);
+    }
+
+    let settings = Settings::load_cli();
+    let output_method_override = if autotype {
+        Some(OutputMethod::Autotype)
+    } else {
+        None
+    };
+    let config = app::load_transcription_config()?;
+
+    let runtime = tokio::runtime::Runtime::new()?;
+    settings.shortcuts.validate()?;
+
+    match settings.shortcuts.cli_mode {
+        CliShortcutMode::Direct => {
+            let shortcut = &settings.shortcuts.cli_key;
+            let push_to_talk = settings.shortcuts.cli_push_to_talk;
+            let output_method = output_method_override
+                .as_ref()
+                .unwrap_or(&settings.ui.output_method);
+            match hotkey::setup(shortcut) {
+                Ok((hotkey_rx, _guard)) => {
+                    if push_to_talk {
+                        println!(
+                            "Listening. Hold {} to record (push-to-talk). Output: {}. Ctrl+C to stop.",
+                            shortcut, output_method
+                        );
+                    } else {
+                        println!(
+                            "Listening. Press {} to toggle recording. Output: {}. Ctrl+C to stop.",
+                            shortcut, output_method
+                        );
+                    }
+                    runtime.block_on(async {
+                        let service = service::Service::new(config, output_method_override)?;
+                        tokio::select! {
+                            result = service.run(Some(hotkey_rx), push_to_talk) => result,
+                            _ = tokio::signal::ctrl_c() => {
+                                println!("\nShutting down...");
+                                Ok(())
+                            }
+                        }
+                    })
+                }
+                Err(e) => {
+                    eprintln!("Error: Could not set up hotkey: {}", e);
+                    eprintln!();
+                    eprintln!("To use direct hotkey capture, run:");
+                    eprintln!("  sudo usermod -aG input $USER");
+                    eprintln!("Then logout and login again.");
+                    eprintln!();
+                    eprintln!("Or switch to system mode:");
+                    eprintln!("  whis config cli-mode system");
+                    std::process::exit(1);
+                }
+            }
+        }
+        _ => {
+            let output_method = output_method_override
+                .as_ref()
+                .unwrap_or(&settings.ui.output_method);
+            println!(
+                "Listening. Press your configured shortcut to record. Output: {}. Ctrl+C to stop.",
+                output_method
+            );
+            runtime.block_on(async {
+                let service = service::Service::new(config, output_method_override)?;
+                tokio::select! {
+                    result = service.run(None, false) => result,
+                    _ = tokio::signal::ctrl_c() => {
+                        println!("\nShutting down...");
+                        Ok(())
+                    }
+                }
+            })
+        }
+    }
+}
